@@ -2,7 +2,7 @@
 
 LifeLink is a full-stack web app that connects blood donors and patients. Donors register once, patients search by blood group and city, and requests are matched and accepted in real time.
 
-**Live demo:** https://deluxe-malasada-0fe6b7.netlify.app
+**Live demo:** https://lifelink-donors.netlify.app/
 *(Currently private. This link will open for everyone once the site is made public.)*
 
 ## Features
