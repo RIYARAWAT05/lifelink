@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LifeLink: find a blood donor</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<style>
+  :root { --red:#b3172b; --red-dark:#8c1121; --ink:#2a1a1d; --soft:#fbeff0; --line:#ecd3d6; --ok:#1e7a46; }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family: Georgia, "Times New Roman", serif; color:var(--ink); background:#fff; line-height:1.5; }
+  header { background:var(--red); color:#fff; padding:28px 20px; }
+  header h1 { margin:0; font-size:1.9rem; }
+  header p { margin:6px 0 0; opacity:.92; max-width:60ch; }
+  main { max-width:760px; margin:0 auto; padding:24px 20px 60px; }
+  form { display:grid; grid-template-columns:1fr 1.4fr auto; gap:12px; align-items:end; }
+  label { display:block; font-size:.9rem; margin-bottom:4px; }
+  select, input, button { font:inherit; padding:11px 12px; border:1px solid var(--line); border-radius:6px; width:100%; }
+  button { background:var(--red); color:#fff; border-color:var(--red); cursor:pointer; width:auto; font-weight:bold; }
+  button:hover { background:var(--red-dark); }
+  :focus-visible { outline:3px solid #f2a5ae; outline-offset:2px; }
+  #status { margin:22px 0 10px; min-height:1.5em; }
+  .card { border:1px solid var(--line); border-left:5px solid var(--red); border-radius:6px; padding:14px 16px; margin-bottom:12px; display:flex; justify-content:space-between; gap:12px; align-items:center; }
+  .card h3 { margin:0 0 2px; font-size:1.1rem; }
+  .card small { color:#6b5559; }
+  .group { font-size:1.4rem; font-weight:bold; color:var(--red); }
+  .avail { color:var(--ok); font-weight:bold; }
+  .busy { color:#8a6d00; font-weight:bold; }
+  .notice { background:var(--soft); border:1px solid var(--line); padding:12px 14px; border-radius:6px; }
+  @media (max-width:560px) { form { grid-template-columns:1fr; } button { width:100%; } }
+  nav { display:flex; flex-wrap:wrap; gap:6px 20px; margin-top:16px; }
+  nav a { color:#fff; font-weight:bold; text-decoration:none; opacity:.8; padding-bottom:2px; border-bottom:2px solid transparent; }
+  nav a:hover { opacity:1; border-bottom-color:rgba(255,255,255,.6); }
+  nav a[aria-current] { opacity:1; border-bottom-color:#fff; }
+</style>
+</head>
+<body>
+<header>
+  <h1>LifeLink</h1>
+  <p>Search for blood donors by blood group and city. Contact details stay private.</p>
+  <nav><a href="index.html" aria-current="page">Search donors</a><a href="signup.html">Become a donor</a><a href="donor.html">Donor login</a><a href="patient.html">Patient area</a></nav>
+</header>
+<main>
+  <div id="setup" class="notice" hidden>
+    Add your Supabase Project URL and publishable key at the top of this file's script (the two lines marked <b>PASTE HERE</b>), then reload.
+  </div>
+
+  <form id="searchForm">
+    <div>
+      <label for="group">Blood group</label>
+      <select id="group" required>
+        <option value="">Choose</option>
+        <option>A+</option><option>A-</option><option>B+</option><option>B-</option>
+        <option>AB+</option><option>AB-</option><option>O+</option><option>O-</option>
+      </select>
+    </div>
+    <div>
+      <label for="city">City</label>
+      <input id="city" type="text" placeholder="e.g. Dehradun" required>
+    </div>
+    <button type="submit">Search donors</button>
+  </form>
+
+  <div id="status" aria-live="polite"></div>
+  <div id="results"></div>
+</main>
+
+<script>
+  // PASTE HERE: your Supabase Project URL (looks like https://xxxx.supabase.co)
+  const SUPABASE_URL = "https://ovhfoveurpredjzhuxde.supabase.co";
+  // PASTE HERE: your publishable (anon) key. Never use the secret or service role key.
+  const SUPABASE_KEY = "sb_publishable_1z1LYoRRWlczNX0R4LpMkA_3h190Nvx";
+
+  const configured = !SUPABASE_URL.startsWith("PASTE") && !SUPABASE_KEY.startsWith("PASTE");
+  const db = configured ? supabase.createClient(SUPABASE_URL, SUPABASE_KEY) : null;
+  if (!configured) document.getElementById("setup").hidden = false;
+
+  const statusEl = document.getElementById("status");
+  const resultsEl = document.getElementById("results");
+
+  function esc(s) {
+    return String(s).replace(/[&<>"']/g, c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[c]));
+  }
+
+  async function search(group, city) {
+    statusEl.textContent = "Searching…";
+    resultsEl.innerHTML = "";
+    const { data, error } = await db
+      .from("donors_public")
+      .select("id, name, blood_group, city, is_available")
+      .eq("blood_group", group)
+      .ilike("city", city.trim())
+      .order("is_available", { ascending: false });
+
+    if (error) {
+      statusEl.textContent = "Search failed: " + error.message + ". Check your URL and key, then try again.";
+      return;
+    }
+    if (!data.length) {
+      statusEl.textContent = "No " + group + " donors found in " + city.trim() + " yet. Try a nearby city or check the spelling.";
+      return;
+    }
+    statusEl.textContent = data.length + " donor" + (data.length > 1 ? "s" : "") + " found.";
+    resultsEl.innerHTML = data.map(d => `
+      <div class="card">
+        <div>
+          <h3>${esc(d.name)}</h3>
+          <small>${esc(d.city)}</small><br>
+          <span class="${d.is_available ? "avail" : "busy"}">${d.is_available ? "Available now" : "Not available right now"}</span>
+        </div>
+        <div class="group">${esc(d.blood_group)}</div>
+      </div>`).join("");
+  }
+
+  document.getElementById("searchForm").addEventListener("submit", e => {
+    e.preventDefault();
+    if (!db) { statusEl.textContent = "Add your Supabase URL and key first."; return; }
+    search(document.getElementById("group").value, document.getElementById("city").value);
+  });
+</script>
+</body>
+</html>

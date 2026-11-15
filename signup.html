@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LifeLink: become a donor</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<style>
+  :root { --red:#b3172b; --red-dark:#8c1121; --ink:#2a1a1d; --soft:#fbeff0; --line:#ecd3d6; --ok:#1e7a46; }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family: Georgia, "Times New Roman", serif; color:var(--ink); background:#fff; line-height:1.5; }
+  header { background:var(--red); color:#fff; padding:28px 20px; }
+  header h1 { margin:0; font-size:1.9rem; }
+  header p { margin:6px 0 0; opacity:.92; }
+  header a { color:#fff; }
+  main { max-width:520px; margin:0 auto; padding:24px 20px 60px; }
+  label { display:block; font-size:.9rem; margin:14px 0 4px; }
+  select, input, button { font:inherit; padding:11px 12px; border:1px solid var(--line); border-radius:6px; width:100%; height:46px; }
+  button { background:var(--red); color:#fff; border-color:var(--red); cursor:pointer; font-weight:bold; margin-top:22px; }
+  button:hover { background:var(--red-dark); }
+  button:disabled { opacity:.6; cursor:wait; }
+  :focus-visible { outline:3px solid #f2a5ae; outline-offset:2px; }
+  #status { margin-top:18px; padding:12px 14px; border-radius:6px; display:none; }
+  #status.error { display:block; background:var(--soft); border:1px solid var(--red); }
+  #status.success { display:block; background:#e8f5ee; border:1px solid var(--ok); }
+  small { color:#6b5559; }
+  nav { display:flex; flex-wrap:wrap; gap:6px 20px; margin-top:16px; }
+  nav a { color:#fff; font-weight:bold; text-decoration:none; opacity:.8; padding-bottom:2px; border-bottom:2px solid transparent; }
+  nav a:hover { opacity:1; border-bottom-color:rgba(255,255,255,.6); }
+  nav a[aria-current] { opacity:1; border-bottom-color:#fff; }
+</style>
+</head>
+<body>
+<header>
+  <h1>LifeLink</h1>
+  <p>Become a donor.</p>
+  <nav><a href="index.html">Search donors</a><a href="signup.html" aria-current="page">Become a donor</a><a href="donor.html">Donor login</a><a href="patient.html">Patient area</a></nav>
+</header>
+<main>
+  <form id="signupForm">
+    <label for="name">Full name</label>
+    <input id="name" type="text" required>
+
+    <label for="email">Email</label>
+    <input id="email" type="email" required autocomplete="email">
+    <small>Patients who log in can see this email. Other donors cannot.</small>
+
+    <label for="password">Password</label>
+    <input id="password" type="password" minlength="6" required autocomplete="new-password">
+    <small>At least 6 characters.</small>
+
+    <label for="phone">Phone</label>
+    <input id="phone" type="tel">
+
+    <label for="group">Blood group</label>
+    <select id="group" required>
+      <option value="">Choose</option>
+      <option>A+</option><option>A-</option><option>B+</option><option>B-</option>
+      <option>AB+</option><option>AB-</option><option>O+</option><option>O-</option>
+    </select>
+
+    <label for="city">City</label>
+    <input id="city" type="text" placeholder="e.g. Dehradun" required>
+
+    <button id="submitBtn" type="submit">Register as donor</button>
+  </form>
+  <div id="status" aria-live="polite"></div>
+</main>
+
+<script>
+  // PASTE HERE: same Project URL as in index.html (https://xxxx.supabase.co, no /rest/v1/)
+  const SUPABASE_URL = "https://ovhfoveurpredjzhuxde.supabase.co";
+  // PASTE HERE: same publishable key as in index.html. Never use the secret key.
+  const SUPABASE_KEY = "sb_publishable_1z1LYoRRWlczNX0R4LpMkA_3h190Nvx";
+
+  const configured = !SUPABASE_URL.startsWith("PASTE") && !SUPABASE_KEY.startsWith("PASTE");
+  const db = configured ? supabase.createClient(SUPABASE_URL, SUPABASE_KEY) : null;
+
+  const statusEl = document.getElementById("status");
+  const btn = document.getElementById("submitBtn");
+
+  function show(kind, msg) { statusEl.className = kind; statusEl.textContent = msg; }
+
+  document.getElementById("signupForm").addEventListener("submit", async e => {
+    e.preventDefault();
+    if (!db) { show("error", "Add your Supabase URL and key at the bottom of this file first."); return; }
+
+    btn.disabled = true;
+    show("success", "Creating your account…");
+
+    const email = document.getElementById("email").value.trim();
+    const password = document.getElementById("password").value;
+
+    const { data, error } = await db.auth.signUp({ email, password });
+    if (error) { show("error", "Sign-up failed: " + error.message); btn.disabled = false; return; }
+
+    // No session means Supabase is waiting for the email to be confirmed.
+    if (!data.session) {
+      show("error", "Account created, but Supabase needs the email confirmed first. In Supabase, go to Authentication, then Sign In / Providers, then Email, and turn off Confirm email while you test. Then use a different email and try again.");
+      btn.disabled = false;
+      return;
+    }
+
+    const { error: rowError } = await db.from("donors").insert({
+      id: data.user.id,
+      name: document.getElementById("name").value.trim(),
+      email: email,
+      phone: document.getElementById("phone").value.trim() || null,
+      blood_group: document.getElementById("group").value,
+      city: document.getElementById("city").value.trim()
+    });
+
+    if (rowError) { show("error", "Account created, but saving your donor details failed: " + rowError.message); btn.disabled = false; return; }
+
+    show("success", "You're registered as a donor. Go back to the search page and look for your blood group and city.");
+    document.getElementById("signupForm").reset();
+    btn.disabled = false;
+  });
+</script>
+</body>
+</html>
